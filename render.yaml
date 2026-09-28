@@ -1,0 +1,60 @@
+# render.yaml — Render deployment configuration for MiloChat
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: milo-chat-api
+    runtime: node
+    region: oregon         # Change to: oregon, ohio, frankfurt, singapore
+    plan: free             # Change to: starter ($7/mo) for always-on + no sleep
+    branch: main           # Branch to deploy from
+
+    buildCommand: npm ci --omit=dev
+    startCommand: node src/server.js
+
+    healthCheckPath: /health
+
+    # Auto-deploy on every push to the branch above
+    autoDeploy: true
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000        # Render assigns this port — do NOT change
+
+      # ── Set these in the Render dashboard (Environment tab) ──────────────
+      # Never put real values here — this file goes into git
+
+      - key: MONGODB_URI
+        sync: false         # means: set manually in dashboard
+
+      - key: JWT_SECRET
+        sync: false
+
+      - key: JWT_REFRESH_SECRET
+        sync: false
+
+      - key: JWT_EXPIRES_IN
+        value: 15m
+
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+
+      - key: AGORA_APP_ID
+        sync: false
+
+      - key: AGORA_APP_CERTIFICATE
+        sync: false
+
+      - key: AGORA_TOKEN_EXPIRY
+        value: 3600
+
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false         # paste the full JSON content in dashboard
+
+      - key: UPLOAD_DIR
+        value: /tmp/uploads  # Render free tier has ephemeral disk — use /tmp
+
+      - key: MAX_FILE_SIZE_MB
+        value: 10

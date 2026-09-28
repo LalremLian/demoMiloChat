@@ -20,6 +20,10 @@ const uploadRoutes = require('./routes/uploads');
 
 const app = express();
 
+// ── Trust Render / proxy headers ─────────────────────────────────────────────
+// Required for correct IP detection and HTTPS behind Render's load balancer
+app.set('trust proxy', 1);
+
 // ── Ensure upload directory exists ───────────────────────────────────────────
 const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
 if (!fs.existsSync(uploadDir)) {

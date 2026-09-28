@@ -5,15 +5,9 @@ const { handleMessage, handleConnect, handleDisconnect } = require('./wsHandler'
 /**
  * Attaches a WebSocket server to an existing HTTP server instance.
  *
- * Connection flow:
- *   1. Client connects to ws://host/ws?token=<jwt>
- *   2. Server verifies the JWT on the 'upgrade' event — rejects with 401 if invalid
- *   3. On success, the socket is registered in the wsClients map and stored on the app
- *   4. Incoming messages are routed through wsHandler
- *   5. On disconnect, presence is updated and user_offline is broadcast
- *
- * The wsClients map (userId → WebSocket) is attached to the Express app so
- * controllers can reach connected clients without a separate import.
+ * Works behind Render's proxy — TLS is terminated at the proxy level,
+ * so internally everything runs over plain HTTP/WS on PORT 10000.
+ * Clients connect with wss:// (Render handles the TLS upgrade).
  *
  * @param {import('http').Server} httpServer
  * @param {import('express').Application} app
@@ -23,23 +17,23 @@ const initWebSocketServer = (httpServer, app) => {
   const wsClients = new Map();
   app.set('wsClients', wsClients);
 
-  const wss = new WebSocketServer({
-    server: httpServer,
-    path: '/ws',
-    // Authentication happens in the 'upgrade' event — do not verify here
-    verifyClient: () => true,
-  });
+  // noServer: true — we handle the upgrade manually so we can auth before
+  // the WS handshake completes and reject with a proper HTTP 401
+  const wss = new WebSocketServer({ noServer: true });
 
-  // ── Authenticate on upgrade (before the socket is established) ────────────
+  // ── Authenticate on upgrade (before socket is established) ───────────────
   httpServer.on('upgrade', async (req, socket, head) => {
-    // Only handle our /ws path
-    if (!req.url.startsWith('/ws')) return;
+    // Only handle /ws path — ignore anything else (e.g. Render internal pings)
+    const pathname = req.url ? req.url.split('?')[0] : '';
+    if (pathname !== '/ws') {
+      socket.destroy();
+      return;
+    }
 
     try {
       const user = await authenticateWsConnection(req);
-      // Stash the user on the request object so the 'connection' handler can read it
       req._wsUser = user;
-      // Let the WebSocketServer proceed with the handshake
+
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
       });
@@ -67,38 +61,36 @@ const initWebSocketServer = (httpServer, app) => {
 
     const userId = user._id.toString();
 
-    // Replace any stale connection for this user (e.g. reconnect)
+    // Replace any stale connection for this user (reconnect scenario)
     const existing = wsClients.get(userId);
     if (existing && existing.readyState === 1 /* OPEN */) {
       existing.close(1001, 'Replaced by new connection');
     }
     wsClients.set(userId, ws);
 
-    console.log(`[WS] Connected: ${user.username} (${userId})`);
+    console.log(`[WS] Connected: ${user.username} (${userId}) — total: ${wsClients.size}`);
 
-    // Broadcast user_online and update DB
+    // Update DB + broadcast user_online
     handleConnect(user, wsClients).catch(() => {});
 
-    // ── Incoming message ───────────────────────────────────────────────────
+    // ── Incoming messages ──────────────────────────────────────────────────
     ws.on('message', (rawMessage) => {
       handleMessage(ws, user, rawMessage, wsClients).catch((err) => {
-        console.error(`[WS] Message handler error for ${userId}:`, err.message);
+        console.error(`[WS] Message error for ${userId}:`, err.message);
       });
     });
 
     // ── Ping/pong keepalive ────────────────────────────────────────────────
+    // Render's proxy has a 55s idle timeout — ping every 25s to keep alive
     ws.isAlive = true;
-    ws.on('pong', () => {
-      ws.isAlive = true;
-    });
+    ws.on('pong', () => { ws.isAlive = true; });
 
     // ── Disconnect ─────────────────────────────────────────────────────────
-    ws.on('close', () => {
-      // Only remove from map if this is still the active socket for the user
+    ws.on('close', (code, reason) => {
       if (wsClients.get(userId) === ws) {
         wsClients.delete(userId);
       }
-      console.log(`[WS] Disconnected: ${user.username} (${userId})`);
+      console.log(`[WS] Disconnected: ${user.username} (${userId}) code=${code} — total: ${wsClients.size}`);
       handleDisconnect(user, wsClients).catch(() => {});
     });
 
@@ -107,7 +99,8 @@ const initWebSocketServer = (httpServer, app) => {
     });
   });
 
-  // ── Heartbeat — terminate stale connections every 30 s ───────────────────
+  // ── Heartbeat every 25s ───────────────────────────────────────────────────
+  // Render proxy closes idle connections after 55s — ping every 25s to stay alive
   const heartbeatInterval = setInterval(() => {
     wss.clients.forEach((ws) => {
       if (!ws.isAlive) {
@@ -117,7 +110,7 @@ const initWebSocketServer = (httpServer, app) => {
       ws.isAlive = false;
       ws.ping();
     });
-  }, 30_000);
+  }, 25_000);
 
   wss.on('close', () => clearInterval(heartbeatInterval));
 
