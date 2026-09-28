@@ -61,17 +61,20 @@ const register = async (req, res, next) => {
       res,
       {
         user: {
-          id: user._id,
+          id: user._id.toString(),
           email: user.email,
           username: user.username,
           displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
+          bio: user.bio || '',
+          avatarUrl: user.avatarUrl || '',
+          isOnline: user.isOnline,
+          lastSeenAt: user.lastSeenAt ? user.lastSeenAt.getTime() : null,
           isVerified: user.isVerified,
+          createdAt: user.createdAt.getTime(),
         },
         accessToken,
         refreshToken,
         expiresIn: getExpiresIn(),
-        // Verification token only exposed in development — send via email in production
         verificationToken: process.env.NODE_ENV === 'development' ? verificationToken : undefined,
       },
       201
@@ -102,12 +105,16 @@ const login = async (req, res, next) => {
 
     return success(res, {
       user: {
-        id: user._id,
+        id: user._id.toString(),
         email: user.email,
         username: user.username,
         displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
+        bio: user.bio || '',
+        avatarUrl: user.avatarUrl || '',
+        isOnline: user.isOnline,
+        lastSeenAt: user.lastSeenAt ? user.lastSeenAt.getTime() : null,
         isVerified: user.isVerified,
+        createdAt: user.createdAt.getTime(),
       },
       accessToken,
       refreshToken,

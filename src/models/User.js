@@ -96,6 +96,11 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
+        ret.id = ret._id.toString();
+        ret.lastSeenAt = ret.lastSeenAt instanceof Date ? ret.lastSeenAt.getTime() : null;
+        ret.createdAt = ret.createdAt instanceof Date ? ret.createdAt.getTime() : ret.createdAt;
+        ret.updatedAt = ret.updatedAt instanceof Date ? ret.updatedAt.getTime() : ret.updatedAt;
+        delete ret._id;
         delete ret.password;
         delete ret.fcmToken;
         delete ret.blockedUsers;

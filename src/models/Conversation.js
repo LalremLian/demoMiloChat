@@ -36,6 +36,21 @@ const conversationSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
+        ret.id = ret._id.toString();
+        // Serialize member IDs as strings
+        if (ret.members) {
+          ret.members = ret.members.map(m =>
+            typeof m === 'object' && m._id ? { ...m, id: m._id.toString(), _id: undefined } : m
+          );
+        }
+        ret.lastMessage = ret.lastMessage
+          ? (typeof ret.lastMessage === 'object' && ret.lastMessage._id
+              ? { ...ret.lastMessage, id: ret.lastMessage._id.toString(), _id: undefined }
+              : ret.lastMessage)
+          : null;
+        ret.createdAt = ret.createdAt instanceof Date ? ret.createdAt.getTime() : ret.createdAt;
+        ret.updatedAt = ret.updatedAt instanceof Date ? ret.updatedAt.getTime() : ret.updatedAt;
+        delete ret._id;
         delete ret.__v;
         return ret;
       },

@@ -46,6 +46,15 @@ const callSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
+        ret.id = ret._id.toString();
+        ret.callerId = ret.callerId?.toString();
+        ret.calleeId = ret.calleeId?.toString();
+        // Populate caller/callee objects already have id from User toJSON
+        ret.startedAt = ret.startedAt instanceof Date ? ret.startedAt.getTime() : null;
+        ret.endedAt = ret.endedAt instanceof Date ? ret.endedAt.getTime() : null;
+        ret.createdAt = ret.createdAt instanceof Date ? ret.createdAt.getTime() : ret.createdAt;
+        ret.updatedAt = ret.updatedAt instanceof Date ? ret.updatedAt.getTime() : ret.updatedAt;
+        delete ret._id;
         delete ret.__v;
         return ret;
       },

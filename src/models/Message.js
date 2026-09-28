@@ -77,6 +77,20 @@ const messageSchema = new mongoose.Schema(
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
+        ret.id = ret._id.toString();
+        ret.conversationId = ret.conversationId?.toString();
+        ret.senderId = ret.senderId?.toString();
+        ret.replyToId = ret.replyTo?.toString() || null;
+        ret.replyTo = undefined;
+        if (ret.reactions) {
+          ret.reactions = ret.reactions.map(r => ({
+            ...r,
+            userId: r.userId?.toString(),
+          }));
+        }
+        ret.createdAt = ret.createdAt instanceof Date ? ret.createdAt.getTime() : ret.createdAt;
+        ret.updatedAt = ret.updatedAt instanceof Date ? ret.updatedAt.getTime() : ret.updatedAt;
+        delete ret._id;
         delete ret.__v;
         return ret;
       },

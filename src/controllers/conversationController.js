@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { success, paginated, error } = require('../helpers/response');
+const { normalizeConversation } = require('../helpers/normalize');
 
 const validate = (req, res) => {
   const errors = validationResult(req);
@@ -44,7 +45,11 @@ const getConversations = async (req, res, next) => {
       Conversation.countDocuments({ members: req.user._id }),
     ]);
 
-    return paginated(res, conversations, { page, pageSize, total });
+    return paginated(
+      res,
+      conversations.map(normalizeConversation),
+      { page, pageSize, total }
+    );
   } catch (err) {
     next(err);
   }
@@ -65,7 +70,7 @@ const getConversation = async (req, res, next) => {
 
     if (!conversation) return error(res, 'Conversation not found', 404);
 
-    return success(res, { conversation });
+    return success(res, { conversation: normalizeConversation(conversation) });
   } catch (err) {
     next(err);
   }
@@ -99,7 +104,7 @@ const createDirectConversation = async (req, res, next) => {
       .populate('members', User.publicFields)
       .populate('lastMessage');
 
-    if (existing) return success(res, { conversation: existing });
+    if (existing) return success(res, { conversation: normalizeConversation(existing.toObject ? existing.toJSON() : existing) });
 
     const conversation = await Conversation.create({
       type: 'direct',
@@ -110,13 +115,7 @@ const createDirectConversation = async (req, res, next) => {
       .populate('members', User.publicFields)
       .lean();
 
-    return success(res, { conversation: populated }, 201);
-  } catch (err) {
-    next(err);
-  }
-};
-
-// POST /api/conversations/group
+    return success(res, { conversation: normalizeConversation(populated) }, 201);
 const createGroupConversation = async (req, res, next) => {
   try {
     if (!validate(req, res)) return;
@@ -147,7 +146,7 @@ const createGroupConversation = async (req, res, next) => {
       .populate('members', User.publicFields)
       .lean();
 
-    return success(res, { conversation: populated }, 201);
+    return success(res, { conversation: normalizeConversation(populated) }, 201);
   } catch (err) {
     next(err);
   }
