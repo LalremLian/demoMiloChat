@@ -55,13 +55,19 @@ const sendMessageValidator = [
     .isLength({ max: 4000 }).withMessage('Message text must not exceed 4000 characters'),
 
   body('attachmentUrl')
-    .optional()
-    .trim()
-    .isURL().withMessage('attachmentUrl must be a valid URL'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      try { new URL(value); return true; } catch { throw new Error('attachmentUrl must be a valid URL'); }
+    }),
 
   body('replyToId')
-    .optional()
-    .isMongoId().withMessage('replyToId must be a valid message ID'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined || value === '') return true;
+      if (!/^[a-fA-F0-9]{24}$/.test(value)) throw new Error('replyToId must be a valid message ID');
+      return true;
+    }),
 
   body('localId')
     .optional()

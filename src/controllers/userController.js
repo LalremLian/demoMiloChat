@@ -91,8 +91,8 @@ const searchUsers = async (req, res, next) => {
     if (!validate(req, res)) return;
 
     const q = req.query.q;
-    const page = req.query.page || 1;
-    const pageSize = req.query.pageSize || 20;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 20;
     const skip = (page - 1) * pageSize;
 
     const blockedByMe = await User.findById(req.user._id).select('blockedUsers');
