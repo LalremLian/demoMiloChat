@@ -4,7 +4,6 @@ const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const User = require('../models/User');
 const { success, error } = require('../helpers/response');
-const { normalizeMessage } = require('../helpers/normalize');
 const { sendNewMessageNotification } = require('../services/notificationService');
 
 const validate = (req, res) => {
@@ -62,7 +61,7 @@ const getMessages = async (req, res, next) => {
       .populate('replyTo', 'text type senderId attachment')
       .lean();
 
-    return success(res, { messages: messages.reverse().map(normalizeMessage), hasMore: messages.length === pageSize });
+    return success(res, { messages: messages.reverse(), hasMore: messages.length === pageSize });
   } catch (err) {
     next(err);
   }
@@ -95,7 +94,7 @@ const sendMessage = async (req, res, next) => {
       const duplicate = await Message.findOne({ localId, conversationId: conversation._id })
         .populate('senderId', User.publicFields)
         .lean();
-      if (duplicate) return success(res, { message: normalizeMessage(duplicate) });
+      if (duplicate) return success(res, { message: duplicate });
     }
 
     if (type === 'text' && !text) {
@@ -154,7 +153,7 @@ const sendMessage = async (req, res, next) => {
       }).catch(() => {}); // fire-and-forget, never block response
     }
 
-    return success(res, { message: normalizeMessage(populated) }, 201);
+    return success(res, { message: populated }, 201);
   } catch (err) {
     next(err);
   }
